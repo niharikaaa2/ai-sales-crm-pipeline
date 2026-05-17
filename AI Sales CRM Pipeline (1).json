@@ -1,0 +1,164 @@
+{
+  "name": "AI Sales CRM Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_GROQ_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a sales qualifier. Given a lead's information, respond with ONLY a JSON object with these fields: score (1-10), qualified (true/false), reason (one sentence), priority (high/medium/low)\"\n    },\n    {\n      \"role\": \"user\", \n      \"content\": \"={{ $json.body.name }} from {{ $json.body.company }}, budget: {{ $json.body.budget }}, message: {{ $json.body.message }}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [208, 0],
+      "id": "9ff78b54-2e8a-424d-80cf-f78d5d497c91",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "YOUR_WEBHOOK_PATH",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "id": "e0eb73fb-d07e-4f01-b5d4-7e92f65954ac",
+      "name": "Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "const content = $input.first().json.choices[0].message.content;\nconst cleaned = content.replace(/```json|```/g, '').trim();\nconst parsed = JSON.parse(cleaned);\n\nreturn [{\n  json: {\n    score: parsed.score,\n    qualified: parsed.qualified === true || parsed.qualified === 'true',\n    priority: parsed.priority,\n    reason: parsed.reason\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [416, 0],
+      "id": "b8217fb1-58cd-4f4c-a4db-740d0a78def1",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c1a55d81-19b2-4ec0-bedb-aed88a39c4e2",
+              "leftValue": "={{ $json.score }}",
+              "rightValue": 5,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [624, 0],
+      "id": "e9063e98-5f30-4bbc-88ca-8cd0e7caa549",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/smtp/email",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api-key",
+              "value": "YOUR_BREVO_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"sender\": {\"name\": \"YOUR_NAME\", \"email\": \"YOUR_EMAIL\"},\n  \"to\": [{\"email\": \"{{ $('Webhook').first().json.body.email }}\", \"name\": \"{{ $('Webhook').first().json.body.name }}\"}],\n  \"subject\": \"We'd love to work with you!\",\n  \"textContent\": \"Hi {{ $('Webhook').first().json.body.name }},\\n\\nThanks for reaching out and showing interest. I'm glad you took the first step.\\n\\nI had a quick look at your details, and it seems like a good fit. I'd love to understand your requirements better so we can move forward.\\n\\nCould you share a bit more about what you're trying to achieve?\\n\\nLooking forward to hearing from you!\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [832, -96],
+      "id": "7f3380fa-3018-4d8c-9eff-3fdb88e719d0",
+      "name": "HTTP Request1 - Qualified Email"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/smtp/email",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api-key",
+              "value": "YOUR_BREVO_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"sender\": {\"name\": \"YOUR_NAME\", \"email\": \"YOUR_EMAIL\"},\n  \"to\": [{\"email\": \"{{ $('Webhook').first().json.body.email }}\", \"name\": \"{{ $('Webhook').first().json.body.name }}\"}],\n  \"subject\": \"Thank you for reaching out\",\n  \"textContent\": \"Hi {{ $('Webhook').first().json.body.name }},\\n\\nThank you for taking the time to reach out and share your requirements with us.\\n\\nAfter reviewing the details, we feel that your current requirements may not be the right fit for our services at this time. We truly appreciate your interest and the opportunity to connect.\\n\\nWe wish you the very best with your project and future plans. If things change down the line, please feel free to reach out again.\\n\\nBest regards,\\nYOUR_NAME\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [832, 96],
+      "id": "0133e1fd-7131-4ac1-9535-5dd0c09dca42",
+      "name": "HTTP Request2 - Rejection Email"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{"node": "HTTP Request", "type": "main", "index": 0}]]
+    },
+    "HTTP Request": {
+      "main": [[{"node": "Code in JavaScript", "type": "main", "index": 0}]]
+    },
+    "Code in JavaScript": {
+      "main": [[{"node": "If", "type": "main", "index": 0}]]
+    },
+    "If": {
+      "main": [
+        [{"node": "HTTP Request1 - Qualified Email", "type": "main", "index": 0}],
+        [{"node": "HTTP Request2 - Rejection Email", "type": "main", "index": 0}]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}
